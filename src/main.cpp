@@ -8,6 +8,7 @@
 
 
 void display_update();
+void check_for_estop();
 void Xhome();
 void Yhome();
 void moveX(long displacement);
@@ -61,7 +62,8 @@ A4988 X(MOTOR_STEPS, XDIR, XSTEP);
 A4988 Y(MOTOR_STEPS, YDIR, YSTEP);
 SerialCommand sCmd;     // The SerialCommand object for parsing arguments from Serial.
 //Ticker SerialPrintInfo(print_update,  1000);
-Ticker DisplayPrint(display_update, 500);
+Ticker DisplayPrint(display_update, 100);
+Ticker EmergencyStop(check_for_estop, 100);
 //Ticker CheckJoystick(joystickMove, 1, 0, 2);
 
 // Define relevant states:
@@ -99,6 +101,7 @@ void setup() {
     lcd.begin(24,2);
     lcd.clear();
     DisplayPrint.start();
+    EmergencyStop.start();
     //CheckJoystick.start();
     pinMode(XEND, INPUT_PULLUP);
     pinMode(YEND, INPUT_PULLUP);
@@ -147,6 +150,7 @@ void loop() {
     //SerialPrintInfo.update();
     DisplayPrint.update();
     sCmd.readSerial();
+    EmergencyStop.update();
     
     
 }
@@ -160,7 +164,17 @@ void loop() {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
+void check_for_estop() {
+    if (!manualMode) {
+        if ((analogRead(XJOYSTICK)>620) and (analogRead(YJOYSTICK)<400)){
+            closeShutter();
+            X.stop();
+            Y.stop();
+            // I considered if it should regain control to the user, but decided against it. 
+            // You start out in manual mode, and 
+        }
+    }
+}
 
 void Xhome() {
     X.setRPM(300);
@@ -215,6 +229,7 @@ void joystickMove() {
             //Serial.println(X.getRPM());
             X.setSpeedProfile(X.CONSTANT_SPEED);
             X.move(sign * X.getRPM());
+            xpos += sign*X.getRPM();
         }
         
         if (!yDead) {
@@ -225,6 +240,7 @@ void joystickMove() {
             //Serial.println(Y.getRPM());
             Y.setSpeedProfile(Y.CONSTANT_SPEED);
             Y.move(sign * Y.getRPM());
+            ypos += sign*Y.getRPM();
         }
 
         //X.nextAction();
