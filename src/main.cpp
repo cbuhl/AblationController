@@ -1,6 +1,14 @@
 #include <Arduino.h>
 #include "A4988.h"
 #include <SerialCommand.h>
+ /*
+ Note that in the SerialCommand.h you need to edit the file, to allow for the large number of parameters:
+
+ // Size of the input buffer in bytes (maximum length of one command plus arguments) (was 32)
+#define SERIALCOMMAND_BUFFER 1100
+// Maximum length of a command excluding the terminating null (was 8)
+#define SERIALCOMMAND_MAXCOMMANDLENGTH 16
+  */
 #include <Ticker.h>
 #include <Wire.h> 
 #include <LiquidCrystal.h>
@@ -52,12 +60,13 @@ void closeShutter();
 #define YEND 4
 #define XJOYSTICK A0
 #define YJOYSTICK A1
-#define SHUTTER_PIN A5
-#define RESOLUTION 256
+#define SHUTTER_PIN 13
+#define RESOLUTION 128
 #define SAFEDISTANCE 500 //safe distance in steps, from the edge of the relevant field (0,0).
 
+
 //RS, ENABLE, D1, D2, D3, D4
-LiquidCrystal lcd(8, 9, 10, 11, 12, 13);
+LiquidCrystal lcd(46, 47, 50, 51, 52, 53);
 A4988 X(MOTOR_STEPS, XDIR, XSTEP);
 A4988 Y(MOTOR_STEPS, YDIR, YSTEP);
 SerialCommand sCmd;     // The SerialCommand object for parsing arguments from Serial.
@@ -76,7 +85,8 @@ bool shutterSafe = false;
 
 //define storage array for scan lines
 int scanLineContainer[RESOLUTION];
-long stepsize = 200; //The stepsize per pixel
+long stepsizeX = 31; //The stepsize per pixel
+long stepsizeY = 25; //The stepsize per pixel
 long xpos, ypos;
 
 
@@ -110,9 +120,12 @@ void setup() {
 
     // Set target motor RPM to 1RPM and microstepping to 16 (full step mode)
     Serial.begin(115200);
-    Serial.println("Ready");
+    Serial.println("Ablation controller, V1");
+    lcd.setCursor(4,0);
+    lcd.print("github.com/cbuhl/");
     lcd.setCursor(3, 1);
-    lcd.print("Ablation Controller");
+    lcd.print("AblationController");
+
 
     X.begin(STANDARD_SPEED, 16);
     Y.begin(STANDARD_SPEED, 16);
@@ -124,15 +137,8 @@ void setup() {
     X.enable();
     Y.enable();
 
-    if (!xHomed){
-        //Xhome();
-    }
-    
-    if (!yHomed){
-        //Yhome();
-    }
+    delay(2000);
 }
-
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -303,12 +309,14 @@ void display_update() {
 
 
 void enableJoystick() {
+    // command MAN
     manualMode = true;
     scanMode = false;
     Serial.println("RETURN: Joystick enabled");
 }
 
 void disableJoystick() {
+    // command REM
     manualMode = false;
     scanMode = true;
     Serial.println("RETURN: Joystick disabled");
@@ -323,7 +331,7 @@ void changeLine() {
         moveToX(-SAFEDISTANCE);
     }
     //increase the stepsize to the right position.
-    moveY(stepsize);
+    moveY(stepsizeY);
 
     
 
@@ -336,9 +344,10 @@ void scanLine(){
         safePosition = false;
     }
     //scan the line
-    X.setSpeedProfile(X.CONSTANT_SPEED);
+    X.setSpeedProfile(X.LINEAR_SPEED, STANDARD_ACCEL, STANDARD_ACCEL);
     moveToX(0);
     openShutter();
+    X.setRPM(350);
     //delay before start
     delay(100);
     for (int i = 0; i < RESOLUTION; i++)
@@ -346,13 +355,14 @@ void scanLine(){
         int rpm = scanLineContainer[i];
         //sanity check on the scan speed
         if (rpm <= 1){
-          rpm = 1;
+          rpm = 0;
         }
-        if (rpm >= 300){
-          rpm = 300;
+        if (rpm >= 500){
+          rpm = 500;
         }
-        X.setRPM(rpm);
-        moveX(stepsize);
+        //X.setRPM(rpm);
+        delay(rpm);
+        moveX(stepsizeX);
     }
 
     X.setRPM(STANDARD_SPEED);
@@ -374,14 +384,18 @@ void scanLine(){
 
 void parseScanCommand(){
     // Response to SCAN command
+    // command SCAN {byte string of integer numbers describing the wait time at each pixel}
+    // command SCAN 345 44 234 5 234 33 23 12
     char *arg;
+    //int scanLineContainer[RESOLUTION];
     arg = sCmd.next();
-    int nn = 1;
+    int nn = 0;
     while ((arg != NULL) and (nn <= RESOLUTION)){
         scanLineContainer[nn] = atol(arg);
-        Serial.print(atol(arg));
+        //Serial.print(atol(arg));
         arg = sCmd.next();
         nn += 1;
+        delay(10);
     }
     Serial.print("RETURN: Line finished, ");
     Serial.print(nn-1);
@@ -390,7 +404,9 @@ void parseScanCommand(){
 }
 
 void parseMoveCommand() {
+    // Relative movement
     // Command: MOVE X -30
+    // command MOVE Y 3332
     char *axis;
     char *displacement;
 
@@ -410,6 +426,7 @@ void parseMoveCommand() {
 
 void parseMoveToCommand() {
     // Command: MOVETO X -30
+    // command MOVETO Y 3433
     char *axis;
     char *position;
 
@@ -429,6 +446,7 @@ void parseMoveToCommand() {
 
 void returnPosition() {
     //Returns x, y position
+    // command GETPOS
     Serial.print("RETURN: position is: ");
     Serial.print(xpos);
     Serial.print(", ");
@@ -437,6 +455,7 @@ void returnPosition() {
 }
 
 void homeAllAxis() {
+    // command HOME
     Xhome();
     Yhome();
     Serial.println("RETURN: All axis homed");
@@ -446,29 +465,49 @@ void unrecognized(const char *command) {
     Serial.println("ERROR: Command not recognized."); 
 }
 
-void setStepSize(){
+void setStepSize() {
     // Two cases: 
-    // 1. If an argument is provided, a new stepsize is defined (and subsequently a different Area)
+    // 1. If an axis argument is provided, a new stepsize is defined (and subsequently a different Area)
     // 2. (TBI) If no argument is provided, it will return the set stepsize.
-    char *arg;
-    arg = sCmd.next();    // Get the next argument from the SerialCommand object buffer
-    if (arg != NULL) {    // As long as it existed, take it
-      Serial.println("RETURN: Stepsize changed.");
-      stepsize = atol(arg);
+    // command STEP
+    // command STEP X 34
+    // command STEP Y 33
+    char *axis;
+    char *tempStepsize;
+
+    axis = sCmd.next();
+    tempStepsize = sCmd.next();
+
+    if ((axis != NULL) or (tempStepsize != NULL)){
+        
+        if (strcmp(axis, "X") ==0 ) {
+            Serial.println("RETURN: Stepsize changed on X.");
+            stepsizeX = atol(tempStepsize);
+        }
+        else if (strcmp(axis, "Y") ==0 ) {
+            Serial.println("RETURN: Stepsize changed on Y.");
+            stepsizeY = atol(tempStepsize);
+        }
+        else {
+            Serial.println("ERROR: stepsize axis specifier not understood");
+        }
     }
     else {
-      Serial.print("RETURN: Stepsize is: ");
-      Serial.println(stepsize);
+        Serial.print("RETURN: Stepsize is (x,y): ");
+        Serial.print(stepsizeX);
+        Serial.print(", ");
+        Serial.println(stepsizeY);
     }
 }
 
 
 void setCenter(){
     //This function resets the coordinate system to center, and ascertains remote-only control, and finally moves outside to the safe position.
+    // command CENTER
     manualMode = false;
     scanMode = true;
-    xpos = 127*stepsize;
-    ypos = 127*stepsize;
+    xpos = RESOLUTION/2*stepsizeX;
+    ypos = RESOLUTION/2*stepsizeY;
 
 
     //move to safe corner
@@ -480,12 +519,14 @@ void setCenter(){
 
 
 void openShutter(){
+    // command OPEN
     digitalWrite(SHUTTER_PIN, HIGH);
     Serial.println("RETURN: Shutter open.");
     shutterSafe = false;
 }
 
 void closeShutter(){
+    // command CLOSE
     digitalWrite(SHUTTER_PIN, LOW);
     Serial.println("RETURN: Shutter closed.");
     shutterSafe = true;
