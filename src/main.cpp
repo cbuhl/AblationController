@@ -30,6 +30,7 @@ void enableJoystick();
 void disableJoystick();
 void changeLine();
 void scanLine();
+void executeScanLine();
 void parseScanCommand();
 void parseMoveCommand();
 void parseMoveToCommand();
@@ -61,7 +62,7 @@ void closeShutter();
 #define XJOYSTICK A0
 #define YJOYSTICK A1
 #define SHUTTER_PIN 13
-#define RESOLUTION 128
+#define RESOLUTION 256
 #define SAFEDISTANCE 500 //safe distance in steps, from the edge of the relevant field (0,0).
 
 
@@ -82,6 +83,11 @@ bool manualMode = true;
 bool scanMode = false;
 bool safePosition = false;
 bool shutterSafe = false;
+// received states
+bool aReceived = false;
+bool bReceived = false;
+bool cReceived = false;
+bool dReceived = false;
 
 //define storage array for scan lines
 int scanLineContainer[RESOLUTION];
@@ -102,9 +108,10 @@ void setup() {
     sCmd.addCommand("HOME",     homeAllAxis);
     sCmd.addCommand("HOMEX",    Xhome);
     sCmd.addCommand("HOMEY",    Yhome);
-    sCmd.addCommand("CENTER",     setCenter);
+    sCmd.addCommand("CENTER",   setCenter);
     sCmd.addCommand("OPEN",     openShutter);
     sCmd.addCommand("CLOSE",    closeShutter);
+    sCmd.addCommand("EXEC",     executeScanLine);
     sCmd.setDefaultHandler(unrecognized);
 
 
@@ -387,20 +394,75 @@ void parseScanCommand(){
     // command SCAN {byte string of integer numbers describing the wait time at each pixel}
     // command SCAN 345 44 234 5 234 33 23 12
     char *arg;
+    char *section;
     //int scanLineContainer[RESOLUTION];
     arg = sCmd.next();
-    int nn = 0;
-    while ((arg != NULL) and (nn <= RESOLUTION)){
-        scanLineContainer[nn] = atol(arg);
-        //Serial.print(atol(arg));
+    section = sCmd.next();
+
+    int total = 0;
+
+    // decide between the various sections of the array:
+    if (strcmp(section, "A") ==0 ) {
+        int nn = 0;
         arg = sCmd.next();
-        nn += 1;
-        delay(10);
+        while ((arg != NULL) and (nn <= RESOLUTION/4)){
+            scanLineContainer[nn] = atol(arg);
+            arg = sCmd.next();
+            nn += 1;
+            total += 1;
+        }
     }
+
+    else if (strcmp(section, "B") ==0 ) {
+        int nn = 64;
+        arg = sCmd.next();
+        while ((arg != NULL) and (nn <= RESOLUTION/2)){
+            scanLineContainer[nn] = atol(arg);
+            arg = sCmd.next();
+            nn += 1;
+            total += 1;
+        }
+    }
+
+    else if (strcmp(section, "B") ==0 ) {
+        int nn = 128;
+        arg = sCmd.next();
+        while ((arg != NULL) and (nn <= RESOLUTION*3/4)){
+            scanLineContainer[nn] = atol(arg);
+            arg = sCmd.next();
+            nn += 1;
+            total += 1;
+        }
+    }
+
+    else if (strcmp(section, "B") ==0 ) {
+        int nn = 192;
+        arg = sCmd.next();
+        while ((arg != NULL) and (nn <= RESOLUTION)){
+            scanLineContainer[nn] = atol(arg);
+            arg = sCmd.next();
+            nn += 1;
+            total += 1;
+        }
+    }
+
+    else {
+        Serial.println("ERROR: wrong segment indicator in scan line transmission.")
+    }
+
     Serial.print("RETURN: Line finished, ");
-    Serial.print(nn-1);
+    Serial.print(total);
     Serial.println(" numbers received.");
-    scanLine();
+}
+
+void executeScanLine() {
+    if (aReceived and bReceived and cReceived and dReceived) {
+        
+        scanLine();
+    }
+    else {
+        Serial.println("ERROR: Not all scan segments have been received")
+    }
 }
 
 void parseMoveCommand() {
