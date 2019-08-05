@@ -1,7 +1,27 @@
 # AblationController
 
+## Pins used
+### Display
+The cable has pairwise twisted connections, so one have to be careful:
+| Vss |  | Cool  |
+| ------------- | ------------- | ----- |
+| col 3 is      | right-aligned | $1600 |
+| col 2 is      | centered      |   $12 |
+| zebra stripes | are neat      |    $1 |
 
+|  |  |  |  |  |  |  |  |  |  |  | | | RED CABLE |
+| +5v | GND | pin 46 | V_{contrast} | pin 47 | GND | NC | NC | NC | NC | pin 51 | pin 50 | pin53 | pin 52 |
 
+### Stepper motors
+X axis: Dir: pin 5, Step: pin 6., Endstop: pin 7.
+Y axis: Dir: pin 3, Step: pin 2. Endstop: pin 4.
+
+### TTL output
+Presently, it is connected to pin 13.
+
+### Joystick
+X axis: A0.
+Y axis: A1.
 
 ## The stages:
 

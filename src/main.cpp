@@ -372,6 +372,9 @@ void scanLine(){
         moveX(stepsizeX);
     }
 
+
+    Serial.println("RETURN: Line scanned");
+
     X.setRPM(STANDARD_SPEED);
     //move out on the other side, to a safe distance
     moveX(SAFEDISTANCE);
@@ -383,8 +386,12 @@ void scanLine(){
     //rapid back to safe
     moveToX(-SAFEDISTANCE);
 
-    // change line to next.
+    // change line to next, and inhibit start of next line.
     changeLine();
+    aReceived = false;
+    bReceived = false;
+    cReceived = false;
+    dReceived = false;
 }
 
 
@@ -396,7 +403,6 @@ void parseScanCommand(){
     char *arg;
     char *section;
     //int scanLineContainer[RESOLUTION];
-    arg = sCmd.next();
     section = sCmd.next();
 
     int total = 0;
@@ -411,6 +417,8 @@ void parseScanCommand(){
             nn += 1;
             total += 1;
         }
+
+        aReceived = true;
     }
 
     else if (strcmp(section, "B") ==0 ) {
@@ -422,9 +430,11 @@ void parseScanCommand(){
             nn += 1;
             total += 1;
         }
+
+        bReceived = true;
     }
 
-    else if (strcmp(section, "B") ==0 ) {
+    else if (strcmp(section, "C") ==0 ) {
         int nn = 128;
         arg = sCmd.next();
         while ((arg != NULL) and (nn <= RESOLUTION*3/4)){
@@ -433,9 +443,11 @@ void parseScanCommand(){
             nn += 1;
             total += 1;
         }
+
+        cReceived = true;
     }
 
-    else if (strcmp(section, "B") ==0 ) {
+    else if (strcmp(section, "D") ==0 ) {
         int nn = 192;
         arg = sCmd.next();
         while ((arg != NULL) and (nn <= RESOLUTION)){
@@ -444,10 +456,14 @@ void parseScanCommand(){
             nn += 1;
             total += 1;
         }
+
+        dReceived = true;
     }
 
     else {
-        Serial.println("ERROR: wrong segment indicator in scan line transmission.")
+        Serial.println("ERROR: wrong segment indicator in scan line transmission.");
+        Serial.println(section);
+        Serial.println(arg);
     }
 
     Serial.print("RETURN: Line finished, ");
@@ -461,7 +477,7 @@ void executeScanLine() {
         scanLine();
     }
     else {
-        Serial.println("ERROR: Not all scan segments have been received")
+        Serial.println("ERROR: Not all scan segments have been received");
     }
 }
 
