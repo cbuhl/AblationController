@@ -3,13 +3,10 @@
 ## Pins used
 ### Display
 The cable has pairwise twisted connections, so one have to be careful:
-| Vss |  | Cool  |
-| ------------- | ------------- | ----- |
-| col 3 is      | right-aligned | $1600 |
-| col 2 is      | centered      |   $12 |
-| zebra stripes | are neat      |    $1 |
+
 
 |  |  |  |  |  |  |  |  |  |  |  | | | RED CABLE |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | +5v | GND | pin 46 | V_{contrast} | pin 47 | GND | NC | NC | NC | NC | pin 51 | pin 50 | pin53 | pin 52 |
 
 ### Stepper motors
