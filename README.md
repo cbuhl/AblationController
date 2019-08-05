@@ -7,7 +7,8 @@ The cable has pairwise twisted connections, so one have to be careful:
 
 |  |  |  |  |  |  |  |  |  |  |  | | | RED CABLE |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| +5v | GND | pin 46 | V_{contrast} | pin 47 | GND | NC | NC | NC | NC | pin 51 | pin 50 | pin53 | pin 52 |
+| Vcc | Vss(gnd) | RS | V<sub>O</sub> | EN | R/W | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 |
+| +5v | GND | pin46 | V<sub>contrast</sub> | pin47 | GND | NC | NC | NC | NC | pin51 | pin50 | pin53 | pin52 |
 
 ### Stepper motors
 X axis: Dir: pin 5, Step: pin 6., Endstop: pin 7.
