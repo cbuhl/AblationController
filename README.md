@@ -11,7 +11,7 @@ The cable has pairwise twisted connections, so one have to be careful:
 | +5v | GND | pin46 | V<sub>contrast</sub> | pin47 | GND | NC | NC | NC | NC | pin51 | pin50 | pin53 | pin52 |
 
 ### Stepper motors
-X axis: Dir: pin 5, Step: pin 6., Endstop: pin 7.
+X axis: Dir: pin 5, Step: pin 6., Endstop: pin 7. <br>
 Y axis: Dir: pin 3, Step: pin 2. Endstop: pin 4.
 
 ### TTL output

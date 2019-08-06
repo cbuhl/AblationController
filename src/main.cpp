@@ -373,7 +373,7 @@ void scanLine(){
     }
 
 
-    Serial.println("RETURN: Line scanned");
+    Serial.println("RETURN: Line scanned succesfully");
 
     X.setRPM(STANDARD_SPEED);
     //move out on the other side, to a safe distance
