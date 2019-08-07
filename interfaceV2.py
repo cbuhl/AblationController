@@ -1,7 +1,7 @@
 from PyQt5.uic import loadUiType
 
 import sys
-from PyQt5.QtWidgets import QDialog, QApplication, QPushButton, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QDialog, QApplication, QPushButton, QMessageBox, QFileDialog, QErrorMessage
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -29,6 +29,7 @@ class Main(QMainWindow, Ui_MainWindow):
         self.canvas = FigureCanvas(self.fig)
         self.openTextInput()
         self.inputData = np.zeros([512,512])
+        self.resizedArr = np.zeros([256,256])
         self.hlinePosition = 0
 
         #take care of a colorbar
@@ -36,7 +37,11 @@ class Main(QMainWindow, Ui_MainWindow):
         divider = make_axes_locatable(self.ax)
         self.cax = divider.new_horizontal(size="5%", pad=0.15, pack_start=False)
         self.colorbar = self.fig.add_axes(self.cax)
-        #self.serial = Serial.Serial(port='/dev/tty.usbmodem1414201', baudrate=115200)
+        try:
+            self.serial = Serial.Serial(port='/dev/tty.usbmodem1414201', baudrate=57600)
+        except Serial.serialutil.SerialException:
+            print('Serial port not available.')
+        #
 
         
         #Definitions of callbacks to functions, at events.
@@ -81,6 +86,7 @@ class Main(QMainWindow, Ui_MainWindow):
         self.stateShutterOpen = False
         self.stateCenterDefined = False
         self.stateHasData = False
+        self.stateHasPlotted = False
 
         # Establish Serial comms
         #connectSerialPort()
@@ -117,7 +123,7 @@ class Main(QMainWindow, Ui_MainWindow):
         if not self.serial.is_open:
             try:
                 self.serial.open()
-                readAllSerial()
+                self.readAllSerial()
             except SerialException:
                 print("Serial port not available")
         else:
@@ -127,10 +133,12 @@ class Main(QMainWindow, Ui_MainWindow):
         if self.serial.is_open:
             self.serial.close()
 
-    def readAllSerial(self, returnOutput = False):
-        if serial.is_open:
-            returnString = str(serial.read(serial.inWaiting()))
-            print(returnString)
+    def readAllSerial(self, returnOutput = False, printOutput = True):
+        if self.serial.is_open:
+            returnString = str(self.serial.read(self.serial.inWaiting())).strip("'").strip("b'")
+
+            if printOutput:
+                print(returnString)
 
             # In case of an error from the arduino:
             if returnString[:5] == "ERROR:"[:5]:
@@ -175,7 +183,8 @@ class Main(QMainWindow, Ui_MainWindow):
             n = 256
             image = Image.fromarray(self.inputData)
             resized = image.resize((n,n), resample=Image.BILINEAR).getdata()
-            imgData = np.array(resized, dtype=int).reshape(n,n)*self.spinTimeMultiplier.value()
+            imgData = np.array(resized).reshape(n,n)*self.spinTimeMultiplier.value()
+            self.resizedArr = imgData.astype(int)
 
             #plot the data
             im=self.ax.imshow(imgData, origin='lower')
@@ -188,6 +197,7 @@ class Main(QMainWindow, Ui_MainWindow):
 
             plt.tight_layout()
             self.canvas.draw()
+            self.stateHasPlotted = True
     
     def generateFile(self):
         if self.fileName:
@@ -233,11 +243,12 @@ class Main(QMainWindow, Ui_MainWindow):
         if self.serial.is_open:
             self.serial.write(b'CENTER\n')
             self.stateCenterDefined = True
+            time.sleep(0.2)
             self.readAllSerial()
 
     def startScan(self):
         # only allowed when it has been centered
-        if (self.stateCenterDefined and self.serial.is_open):
+        if (self.stateCenterDefined and self.serial.is_open and self.stateHasPlotted) :
             self.stateScanning = True
 
             #Handle the four segments of figures that are sent:
@@ -245,25 +256,25 @@ class Main(QMainWindow, Ui_MainWindow):
             listOfStringsB = []
             listOfStringsC = []
             listOfStringsD = []
-            for i in range(resizedArr.shape[1]):
+            for i in range(self.resizedArr.shape[1]):
                 tempString = ""
-                for j in range(resizedArr.shape[0]//4):
-                    tempString += str(resizedArr[i,j]) + ' '
+                for j in range(self.resizedArr.shape[0]//4):
+                    tempString += str(self.resizedArr[i,j]) + ' '
                 listOfStringsA.append(tempString)
                     
                 tempString = ""
-                for j in range(resizedArr.shape[0]//4):
-                    tempString += str(resizedArr[i,j+64]) + ' '
+                for j in range(self.resizedArr.shape[0]//4):
+                    tempString += str(self.resizedArr[i,j+64]) + ' '
                 listOfStringsB.append(tempString)
                     
                 tempString = ""
-                for j in range(resizedArr.shape[0]//4):
-                    tempString += str(resizedArr[i,j+128]) + ' '
+                for j in range(self.resizedArr.shape[0]//4):
+                    tempString += str(self.resizedArr[i,j+128]) + ' '
                 listOfStringsC.append(tempString)
                     
                 tempString = ""
-                for j in range(resizedArr.shape[0]//4):
-                    tempString += str(resizedArr[i,j+192]) + ' '
+                for j in range(self.resizedArr.shape[0]//4):
+                    tempString += str(self.resizedArr[i,j+192]) + ' '
                 listOfStringsD.append(tempString)
 
 
@@ -274,27 +285,28 @@ class Main(QMainWindow, Ui_MainWindow):
                 if not self.stateScanning:
                     break
                 byteStringA = b'SCAN A ' + str.encode(listOfStringsA[self.hlinePosition]) + b' \n'
-                ser.write(byteStringA)
-                time.sleep(0.1)
-                self.readAllSerial()
+                print(byteStringA)
+                self.serial.write(byteStringA)
+                time.sleep(0.2)
 
                 byteStringB = b'SCAN B ' + str.encode(listOfStringsB[self.hlinePosition]) + b' \n'
-                ser.write(byteStringB)
-                time.sleep(0.1)
-                self.readAllSerial()
+                print(byteStringB)
+                self.serial.write(byteStringB)
+                time.sleep(0.2)
 
                 byteStringC = b'SCAN C ' + str.encode(listOfStringsC[self.hlinePosition]) + b' \n'
-                ser.write(byteStringC)
-                time.sleep(0.1)
-                self.readAllSerial()
+                print(byteStringC)
+                self.serial.write(byteStringC)
+                time.sleep(0.2)
 
                 byteStringD = b'SCAN D ' + str.encode(listOfStringsD[self.hlinePosition]) + b' \n'
-                ser.write(byteStringD)
-                time.sleep(0.1)
-                self.readAllSerial()
+                print(byteStringD)
+                self.serial.write(byteStringD)
+                time.sleep(0.2)
 
                 #Call the ucontroller to execute the scan line.
-                ser.write(b'EXEC\n')
+                self.serial.write(b'EXEC\n')
+                time.sleep(0.5)
                 self.readAllSerial()
 
                 self.hlinePosition += 1
@@ -302,10 +314,16 @@ class Main(QMainWindow, Ui_MainWindow):
 
                 stateWaitingForLine = True
                 while stateWaitingForLine and self.stateScanning:
-                    output = self.readAllSerial(returnOutput=True)
-                    if "succesfully" in str(output):
+                    output = str(self.readAllSerial(returnOutput=True, printOutput=False) )
+                    if len(output)>10:
+                        print(output)
+                    if "succesfully" in output:
                         stateWaitingForLine = False
-                
+                        print("Reached End of line.")
+                        
+                    time.sleep(0.05)
+                time.sleep(2.5)
+
                 #Crude implementation of the pause. As it is now, it's fairly useless.
                 if self.statePaused:
                     self.closeShutter()
@@ -335,22 +353,22 @@ class Main(QMainWindow, Ui_MainWindow):
             pass
 
     def closeShutter(self):
-        if serial.is_open:
+        if self.serial.is_open:
             self.serial.write(b'CLOSE\n')
             self.readAllSerial()
     
     def openShutter(self):
-        if serial.is_open:
+        if self.serial.is_open:
             self.serial.write(b'OPEN\n')
             self.readAllSerial()
 
     def shutterToggle(self, button):
-        if button.text == 'Open':
+        if button.text() == 'Open':
             if button.isChecked():
                 self.openShutter()
             else: 
                 self.closeShutter()
-        elif button.text == 'Closed':
+        elif button.text() == 'Closed':
             if button.isChecked():
                 self.closeShutter()
             else:
@@ -362,24 +380,27 @@ class Main(QMainWindow, Ui_MainWindow):
 
 
     def controlRemote(self):
-        if serial.is_open:
+        if self.serial.is_open:
             self.stateRemoteJoystick = True
             self.serial.write(b'REM\n')
+            time.sleep(0.2)
             self.readAllSerial()
     
     def controlManual(self):
-        if serial.is_open:
+        if self.serial.is_open:
             self.stateRemoteJoystick = False
             self.serial.write(b'MAN\n')
+            time.sleep(0.2)
             self.readAllSerial()
 
     def joystickToggle(self, button):
-        if button.text == 'Manual':
+        print(button.text())
+        if button.text() == 'Manual':
             if button.isChecked():
                 self.controlManual()
             else:
                 self.controlRemote()
-        elif button.text == "Remote lock-out":
+        elif button.text() == "Remote lock-out":
             if button.isChecked():
                 self.controlRemote()
             else:

@@ -34,9 +34,9 @@
 #include <string.h>
 
 // Size of the input buffer in bytes (maximum length of one command plus arguments) (was 32)
-#define SERIALCOMMAND_BUFFER 2000
+#define SERIALCOMMAND_BUFFER 4000
 // Maximum length of a command excluding the terminating null
-#define SERIALCOMMAND_MAXCOMMANDLENGTH 10
+#define SERIALCOMMAND_MAXCOMMANDLENGTH 7
 
 // Uncomment the next line to run the library in debug mode (verbose messages)
 //#define SERIALCOMMAND_DEBUG

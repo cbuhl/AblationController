@@ -126,7 +126,7 @@ void setup() {
 
 
     // Set target motor RPM to 1RPM and microstepping to 16 (full step mode)
-    Serial.begin(115200);
+    Serial.begin(57600);
     Serial.println("Ablation controller, V1");
     lcd.setCursor(4,0);
     lcd.print("github.com/cbuhl/");
@@ -359,21 +359,23 @@ void scanLine(){
     delay(100);
     for (int i = 0; i < RESOLUTION; i++)
     {
-        int rpm = scanLineContainer[i];
+        int waitingTime = scanLineContainer[i];
         //sanity check on the scan speed
-        if (rpm <= 1){
-          rpm = 0;
+        if (waitingTime <= 1){
+          waitingTime = 0;
         }
-        if (rpm >= 500){
-          rpm = 500;
+        if (waitingTime >= 500){
+          waitingTime = 500;
         }
         //X.setRPM(rpm);
-        delay(rpm);
+        delay(waitingTime);
         moveX(stepsizeX);
     }
 
+    delay(100);
 
     Serial.println("RETURN: Line scanned succesfully");
+    delay(100);
 
     X.setRPM(STANDARD_SPEED);
     //move out on the other side, to a safe distance
